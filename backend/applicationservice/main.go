@@ -1,36 +1,34 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/gorilla/mux"
+	"github.com/tommystone23/plantmanager/handlers"
 )
 
 func main() {
-	// placeholder API response
-	http.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": "API Response from Backend!",
-		})
-	})
+	r := mux.NewRouter()
 
-	// dev path will need to be changed eventually
-	reactDir := filepath.Join("..", "..", "frontend", "build")
-	fs := http.FileServer(http.Dir(reactDir))
+	// api call to upload images
+    r.HandleFunc("/api/upload/image", handlers.PlantImageHandler).Methods("POST")
 
-	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Join(reactDir, r.URL.Path)
-		_, err := os.Stat(path)
-		if os.IsNotExist(err) {
-			http.ServeFile(w, r, filepath.Join(reactDir, "index.html"))
+	reactDir := filepath.Join("frontend", "build")
+	// Serve static files
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join(reactDir, "static")))))
+
+	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		indexPath := filepath.Join(reactDir, "index.html")
+		if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+			http.Error(w, "index.html not found", http.StatusNotFound)
 			return
 		}
-		fs.ServeHTTP(w, r)
-	}))
+		http.ServeFile(w, r, indexPath)
+	})
 
 	log.Println("Server running at http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
